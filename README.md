@@ -510,7 +510,7 @@ On `PATCH /api/monitors/:id`, omit `auth` to keep credentials, send a new `auth`
 | Email | Nodemailer over SMTP (Resend in production) |
 | Frontend | React 18, Vite, Recharts, plain CSS, a ~70-line History API router |
 | Testing | Vitest, Supertest, real PostgreSQL and Redis |
-| Delivery | Docker, Docker Compose, NGINX, Let's Encrypt, GitHub Actions |
+| Delivery | Docker, Docker Compose, NGINX, Let's Encrypt, GitHub Actions (CI + SSH deploy) |
 
 ---
 
@@ -543,7 +543,8 @@ On `PATCH /api/monitors/:id`, omit `auth` to keep credentials, send a new `auth`
 │       ├── components/              # Layout, charts, tables, auth fields, pager, ...
 │       ├── lib/                     # router, auth bridge, formatting, hooks
 │       └── styles/                  # global.css, landing.css
-├── nginx/                           # reverse proxy (HTTP + HTTPS example)
+├── nginx/                           # reverse proxy: nginx.conf (HTTP), https.conf (template)
+├── scripts/deploy.sh                # pull, rebuild, wait healthy (used by CD)
 ├── docs/screenshots/
 ├── .github/workflows/ci.yml
 ├── docker-compose.yml
@@ -718,7 +719,7 @@ cd backend && npm test
 
 Override the defaults with `TEST_DATABASE_URL` and `TEST_REDIS_URL`.
 
-**Continuous integration** ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push to `main` and every pull request:
+**CI/CD** ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push to `main` and every pull request. On `main`, a passing build is deployed to production automatically:
 
 ```mermaid
 flowchart LR
@@ -733,7 +734,13 @@ flowchart LR
     subgraph dk["docker job"]
         d1["compose config"] --> d2["build all images"]
     end
+    dk -->|"push to main only"| dp
+    subgraph dp["deploy job"]
+        p1["SSH to VM<br/>(pinned host key)"] --> p2["scripts/deploy.sh<br/>pull · rebuild · wait healthy"] --> p3["smoke test<br/>GET /api/health over HTTPS"]
+    end
 ```
+
+A failing test or build stops the pipeline before the deploy job, so broken code never reaches the server. Deploys never overlap: a newer push waits for the running one.
 
 ---
 
@@ -746,10 +753,12 @@ flowchart TB
     visitor(["Visitor"]) -->|"https://uptimehq.example.com"| dns["Registrar DNS<br/>A record → static IP"]
     dns --> vm
 
+    gh["GitHub Actions<br/>CI then deploy over SSH"] -->|"push to main"| vm
+
     subgraph gcp["Google Cloud · Compute Engine"]
         ip["Reserved static IP"] --> vm
         subgraph vm["VM · e2-medium · Ubuntu 24.04 · 20 GB · daily snapshots"]
-            fw["Firewall: 80, 443 only"] --> compose["Docker Compose stack<br/>nginx · frontend · api · worker<br/>scheduler · postgres · redis"]
+            fw["Firewall: 80, 443 (22 for SSH)"] --> compose["Docker Compose stack<br/>nginx · frontend · api · worker<br/>scheduler · postgres · redis"]
             le["Let's Encrypt certificate<br/>(certbot, auto-renew via cron)"] -.-> compose
         end
     end
@@ -796,7 +805,7 @@ All records are added at the registrar. Names are relative to the root domain:
 git clone https://github.com/ashutosh-lodha/UptimeHQ.git uptimehq && cd uptimehq && cp .env.example .env && chmod 600 .env
 ```
 
-Fill in `.env` with production values: a new `POSTGRES_PASSWORD`, Clerk **production** keys (`pk_live_`, `sk_live_`, JWT key), `CLERK_AUTHORIZED_PARTIES=https://<your-domain>`, `APP_URL=https://<your-domain>`, a new `MONITOR_CREDENTIAL_ENCRYPTION_KEY` and the Resend SMTP settings. Then:
+Fill in `.env` with production values: `DOMAIN=<your-domain>`, a new `POSTGRES_PASSWORD`, Clerk **production** keys (`pk_live_`, `sk_live_`, JWT key), `CLERK_AUTHORIZED_PARTIES=https://<your-domain>`, `APP_URL=https://<your-domain>`, a new `MONITOR_CREDENTIAL_ENCRYPTION_KEY` and the Resend SMTP settings. Leave `NGINX_CONF=nginx.conf` for now. Then:
 
 ```bash
 docker compose up -d --build
@@ -810,11 +819,13 @@ With the stack running on port 80 and DNS resolving to the VM:
 docker run --rm -v "$PWD/certbot/conf:/etc/letsencrypt" -v "$PWD/certbot/www:/var/www/certbot" certbot/certbot certonly --webroot -w /var/www/certbot -d <your-domain> --email <you@example.com> --agree-tos --no-eff-email
 ```
 
-Switch NGINX to the HTTPS config, which redirects HTTP to HTTPS and adds HSTS:
+Switch NGINX to the HTTPS config ([nginx/https.conf](nginx/https.conf), which redirects HTTP to HTTPS and adds HSTS) by setting `NGINX_CONF=https.conf` in `.env`, then:
 
 ```bash
-cp nginx/https.conf.example nginx/nginx.conf && sed -i 's/uptime.example.com/<your-domain>/g' nginx/nginx.conf && docker compose up -d --force-recreate nginx
+docker compose up -d --force-recreate nginx
 ```
+
+The config is a template: NGINX fills in `${DOMAIN}` from `.env` at start-up, so no tracked file is edited on the server and `git pull` stays clean.
 
 Renew automatically (`crontab -e`):
 
@@ -822,13 +833,40 @@ Renew automatically (`crontab -e`):
 0 3 * * * cd /home/$USER/uptimehq && docker run --rm -v "$PWD/certbot/conf:/etc/letsencrypt" -v "$PWD/certbot/www:/var/www/certbot" certbot/certbot renew --quiet && docker compose exec nginx nginx -s reload
 ```
 
-### 5. Updates and backups
+### 5. Continuous deployment
 
-```bash
-git pull && docker compose up -d --build
-```
+Every push to `main` that passes CI is deployed by the `deploy` job, which connects over SSH and runs [scripts/deploy.sh](scripts/deploy.sh): fetch `main`, rebuild changed images, restart, wait until every container is healthy (or fail with logs after 5 minutes), prune dangling images, then check `https://<domain>/api/health`. Migrations run automatically when the API restarts.
 
-Migrations run automatically when the API restarts. Back up and restore the database:
+One-time setup:
+
+1. On the VM, create a key used only for deployments:
+
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C github-deploy -f ~/.ssh/github_deploy && cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+   ```
+
+2. Print the private key and the server's host key:
+
+   ```bash
+   cat ~/.ssh/github_deploy && ssh-keyscan -t ed25519 localhost 2>/dev/null | sed "s/^localhost/<VM static IP>/"
+   ```
+
+3. In GitHub, **Settings → Secrets and variables → Actions → New repository secret**:
+
+   | Secret | Value |
+   | --- | --- |
+   | `DEPLOY_HOST` | The VM's static IP |
+   | `DEPLOY_USER` | Your username on the VM |
+   | `DEPLOY_SSH_KEY` | The full private key, including the `BEGIN`/`END` lines |
+   | `DEPLOY_KNOWN_HOSTS` | The `ssh-keyscan` line (pins the host key, so the runner refuses a different server) |
+
+If your project uses OS Login, `authorized_keys` is ignored: add the public key under **Compute Engine → Metadata → SSH keys** instead.
+
+Until these secrets exist the deploy job is skipped, so forks and pull requests never deploy. To deploy by hand, run `bash scripts/deploy.sh` on the VM.
+
+### 6. Backups
+
+Back up and restore the database:
 
 ```bash
 docker compose exec -T postgres pg_dump -U uptimehq uptimehq | gzip > backup-$(date +%F).sql.gz

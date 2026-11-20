@@ -57,6 +57,15 @@ else
   docker compose up -d --build --remove-orphans
 fi
 
+# NGINX reads its config from mounted files, so a config-only change does not recreate it.
+# Recreate it whenever the config (or the .env values that select it) differs from the last deploy.
+nginx_hash="$({ cat nginx/*; env_value NGINX_CONF; env_value DOMAIN; } | sha256sum | cut -c1-16)"
+if [ "$(env_value NGINX_CONFIG_HASH)" != "$nginx_hash" ]; then
+  echo "==> NGINX config changed: recreating nginx"
+  docker compose up -d --no-deps --force-recreate nginx
+  set_env NGINX_CONFIG_HASH "$nginx_hash"
+fi
+
 echo "==> Waiting for services to become healthy"
 deadline=$((SECONDS + 300))
 while true; do

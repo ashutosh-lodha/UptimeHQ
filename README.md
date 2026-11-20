@@ -510,7 +510,7 @@ On `PATCH /api/monitors/:id`, omit `auth` to keep credentials, send a new `auth`
 | Email | Nodemailer over SMTP (Resend in production) |
 | Frontend | React 18, Vite, Recharts, plain CSS, a ~70-line History API router |
 | Testing | Vitest, Supertest, real PostgreSQL and Redis |
-| Delivery | Docker, Docker Compose, NGINX, Let's Encrypt, GitHub Actions (CI + SSH deploy) |
+| Delivery | Docker, Docker Compose, NGINX, Let's Encrypt, GitHub Actions (CI + SSH deploy), GitHub Container Registry |
 
 ---
 
@@ -732,15 +732,15 @@ flowchart LR
     end
     be & fe --> dk
     subgraph dk["docker job"]
-        d1["compose config"] --> d2["build all images"]
+        d1["compose config"] --> d2["build images"] --> d3["main only: push to GHCR<br/>tagged with commit SHA + latest"]
     end
     dk -->|"push to main only"| dp
     subgraph dp["deploy job"]
-        p1["SSH to VM<br/>(pinned host key)"] --> p2["scripts/deploy.sh<br/>pull · rebuild · wait healthy"] --> p3["smoke test<br/>GET /api/health over HTTPS"]
+        p1["SSH to VM<br/>(pinned host key)"] --> p2["scripts/deploy.sh<br/>checkout SHA · pull SHA images<br/>restart · wait healthy"] --> p3["smoke test<br/>GET /api/health over HTTPS"]
     end
 ```
 
-A failing test or build stops the pipeline before the deploy job, so broken code never reaches the server. Deploys never overlap: a newer push waits for the running one.
+A failing test or build stops the pipeline before the deploy job, so broken code never reaches the server. Images are built once in CI and the server runs exactly those images, identified by the commit SHA. Deploys never overlap: a newer push waits for the running one.
 
 ---
 
@@ -753,7 +753,9 @@ flowchart TB
     visitor(["Visitor"]) -->|"https://uptimehq.example.com"| dns["Registrar DNS<br/>A record → static IP"]
     dns --> vm
 
-    gh["GitHub Actions<br/>CI then deploy over SSH"] -->|"push to main"| vm
+    gh["GitHub Actions<br/>test · build · deploy over SSH"] -->|"push images :sha"| ghcr["GitHub Container Registry<br/>uptimehq-backend · uptimehq-frontend"]
+    gh -->|"deploy commit sha"| vm
+    ghcr -->|"docker pull"| vm
 
     subgraph gcp["Google Cloud · Compute Engine"]
         ip["Reserved static IP"] --> vm
@@ -835,23 +837,32 @@ Renew automatically (`crontab -e`):
 
 ### 5. Continuous deployment
 
-Every push to `main` that passes CI is deployed by the `deploy` job, which connects over SSH and runs [scripts/deploy.sh](scripts/deploy.sh): fetch `main`, rebuild changed images, restart, wait until every container is healthy (or fail with logs after 5 minutes), prune dangling images, then check `https://<domain>/api/health`. Migrations run automatically when the API restarts.
+Every push to `main` that passes CI is deployed automatically:
+
+1. The `docker` job builds the backend and frontend images and pushes them to **GitHub Container Registry** (free for public repositories) as `ghcr.io/<owner>/uptimehq-backend:<commit-sha>` and `uptimehq-frontend:<commit-sha>` (plus `latest`).
+2. The `deploy` job connects to the VM over SSH and runs [scripts/deploy.sh](scripts/deploy.sh) for that exact commit: check out the commit (compose file, NGINX config), pull the images with the same SHA, restart, wait until every container is healthy (or fail with logs after 5 minutes) and prune old images.
+3. A smoke test calls `https://<domain>/api/health`.
+
+The server never builds anything, so deploys take seconds and every running image is one that passed the tests. The deployed SHA is recorded as `IMAGE_TAG` in the server's `.env`, so restarts keep the same version. Migrations run automatically when the API starts.
 
 One-time setup:
 
-1. On the VM, create a key used only for deployments:
+1. **Repository variable** (GitHub → **Settings → Secrets and variables → Actions → Variables**): `CLERK_PUBLISHABLE_KEY` = your `pk_live_…` key. It is public by design and is compiled into the frontend image.
+2. **Server `.env`**: `IMAGE_REGISTRY=ghcr.io/<owner>/` (with the trailing slash). Without it, `deploy.sh` builds on the server instead.
+3. **Make the images public** after the first successful push to `main`: on GitHub open your profile → **Packages** → `uptimehq-backend` → **Package settings → Change visibility → Public**, and the same for `uptimehq-frontend`. (Alternatively keep them private and run `docker login ghcr.io` on the VM with a token that has `read:packages`.)
+4. **Deploy key**: on the VM, create a key used only for deployments:
 
    ```bash
    ssh-keygen -t ed25519 -N "" -C github-deploy -f ~/.ssh/github_deploy && cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
    ```
 
-2. Print the private key and the server's host key:
+   Print the private key and the server's host key:
 
    ```bash
    cat ~/.ssh/github_deploy && ssh-keyscan -t ed25519 localhost 2>/dev/null | sed "s/^localhost/<VM static IP>/"
    ```
 
-3. In GitHub, **Settings → Secrets and variables → Actions → New repository secret**:
+5. **Repository secrets** (**Settings → Secrets and variables → Actions → Secrets**):
 
    | Secret | Value |
    | --- | --- |
@@ -862,7 +873,19 @@ One-time setup:
 
 If your project uses OS Login, `authorized_keys` is ignored: add the public key under **Compute Engine → Metadata → SSH keys** instead.
 
-Until these secrets exist the deploy job is skipped, so forks and pull requests never deploy. To deploy by hand, run `bash scripts/deploy.sh` on the VM.
+Until the secrets exist the deploy job is skipped, so forks and pull requests never deploy.
+
+**Manual deploy and rollback** on the VM:
+
+```bash
+bash scripts/deploy.sh
+```
+
+```bash
+DEPLOY_SHA=<older-commit-sha> bash scripts/deploy.sh
+```
+
+The second command checks out that commit and runs its images, which are still in the registry.
 
 ### 6. Backups
 

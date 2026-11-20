@@ -1,26 +1,61 @@
 #!/usr/bin/env bash
-# Deploys the latest main branch on the server. Run from the repository root on the VM.
+# Deploys UptimeHQ on the server. Run from anywhere inside the repository on the VM.
 # Called by the GitHub Actions "deploy" job over SSH, and safe to run by hand.
 #
-#   bash scripts/deploy.sh
+#   bash scripts/deploy.sh                       # deploy the latest main
+#   DEPLOY_SHA=<commit> bash scripts/deploy.sh   # deploy (or roll back to) a specific commit
 #
-# Secrets stay in .env (git-ignored); this script never touches it.
+# Two modes, chosen by IMAGE_REGISTRY in .env:
+#   set   (e.g. ghcr.io/ashutosh-lodha/)  pull the images CI built and tagged with the commit SHA
+#   empty                                 build the images on this machine
+#
+# Secrets stay in .env (git-ignored). The only line this script changes there is IMAGE_TAG,
+# which records the deployed commit so restarts and manual `docker compose` use the same images.
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+repo="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Run from a temporary copy: checking out another commit may rewrite this very file.
+if [ -z "${DEPLOY_REEXEC:-}" ]; then
+  tmp="$(mktemp)"
+  cp "$0" "$tmp"
+  DEPLOY_REEXEC=1 DEPLOY_REPO="$repo" exec bash "$tmp" "$@"
+fi
+trap 'rm -f "$0"' EXIT
+cd "$DEPLOY_REPO"
 
 if [ ! -f .env ]; then
   echo "error: .env is missing. Create it from .env.example first." >&2
   exit 1
 fi
 
-echo "==> Fetching latest code"
-git fetch --prune origin main
-git reset --hard origin/main
-echo "    now at $(git log -1 --format='%h %s')"
+env_value() { grep -E "^$1=" .env | tail -1 | cut -d= -f2- || true; }
+set_env() {
+  if grep -qE "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else printf '%s=%s\n' "$1" "$2" >> .env; fi
+}
 
-echo "==> Building and starting containers"
-docker compose up -d --build --remove-orphans
+echo "==> Fetching code"
+git fetch --prune origin main
+target="${DEPLOY_SHA:-$(git rev-parse origin/main)}"
+git reset --hard "$target"
+echo "    at $(git log -1 --format='%h %s')"
+
+registry="$(env_value IMAGE_REGISTRY)"
+previous="$(env_value IMAGE_TAG)"
+if [ -n "$registry" ]; then
+  echo "==> Pulling images ${registry}uptimehq-{backend,frontend}:$target"
+  set_env IMAGE_TAG "$target"
+  if ! docker compose pull api frontend; then
+    echo "error: images for $target are not in the registry (has CI finished publishing them?)" >&2
+    if [ -n "$previous" ]; then set_env IMAGE_TAG "$previous"; else sed -i '/^IMAGE_TAG=/d' .env; fi
+    exit 1
+  fi
+  echo "==> Starting containers"
+  docker compose up -d --no-build --remove-orphans
+else
+  echo "==> Building images on this machine (IMAGE_REGISTRY is not set)"
+  docker compose up -d --build --remove-orphans
+fi
 
 echo "==> Waiting for services to become healthy"
 deadline=$((SECONDS + 300))
@@ -40,7 +75,7 @@ while true; do
   sleep 5
 done
 
-echo "==> Removing dangling images"
+echo "==> Removing unused images"
 docker image prune -f >/dev/null
 
 docker compose ps

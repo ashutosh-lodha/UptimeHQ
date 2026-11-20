@@ -73,7 +73,9 @@ services:
   api:
     logging: *default-logging
     build: ./backend
-    image: uptimehq-backend:latest
+    # Locally: built here. In production: pulled from the registry at the deployed commit SHA
+    # (IMAGE_REGISTRY and IMAGE_TAG in .env, set by scripts/deploy.sh).
+    image: ${IMAGE_REGISTRY:-}uptimehq-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       <<: *backend-env
@@ -93,7 +95,9 @@ services:
 
   worker:
     logging: *default-logging
-    image: uptimehq-backend:latest
+    image: ${IMAGE_REGISTRY:-}uptimehq-backend:${IMAGE_TAG:-latest}
+    # Same image as api: built or pulled by the api service, never pulled separately.
+    pull_policy: never
     restart: unless-stopped
     environment: *backend-env
     command: ["node", "dist/worker.js"]
@@ -107,7 +111,9 @@ services:
 
   scheduler:
     logging: *default-logging
-    image: uptimehq-backend:latest
+    image: ${IMAGE_REGISTRY:-}uptimehq-backend:${IMAGE_TAG:-latest}
+    # Same image as api: built or pulled by the api service, never pulled separately.
+    pull_policy: never
     restart: unless-stopped
     environment: *backend-env
     command: ["node", "dist/scheduler.js"]
@@ -125,7 +131,7 @@ services:
       args:
         # Public key, compiled into the SPA.
         VITE_CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY:-}
-    image: uptimehq-frontend:latest
+    image: ${IMAGE_REGISTRY:-}uptimehq-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     networks: [edge]
 

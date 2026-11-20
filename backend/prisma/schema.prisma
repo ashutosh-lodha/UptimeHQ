@@ -1,0 +1,168 @@
+// UptimeHQ database schema.
+// All DateTime columns are stored as `timestamptz(3)` and written in UTC.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum HttpMethod {
+  GET
+  HEAD
+}
+
+enum MonitorStatus {
+  PENDING
+  UP
+  DOWN
+}
+
+enum MonitorAuthType {
+  NONE
+  BEARER
+  BASIC
+  API_KEY
+  CUSTOM_HEADERS
+  OAUTH2_CLIENT_CREDENTIALS
+}
+
+enum CheckOutcome {
+  SUCCESS
+  AUTHENTICATION_FAILED
+  AUTHORIZATION_FAILED
+  TOKEN_ACQUISITION_FAILED
+  NETWORK_ERROR
+  TIMEOUT
+  HTTP_STATUS_FAILURE
+}
+
+enum NotificationType {
+  DOWN
+  RECOVERY
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// Clerk user id (user_…). Null only for accounts created before Clerk, until first sign-in links them by verified email.
+  clerkUserId  String?  @unique
+  email        String   @unique
+  name         String
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  monitors            Monitor[]
+  notificationSetting NotificationSetting?
+}
+
+model Monitor {
+  id                 String        @id @default(uuid()) @db.Uuid
+  userId             String        @db.Uuid
+  name               String
+  url                String
+  method             HttpMethod    @default(GET)
+  /// One of 5, 10, 30, 60, 300, 600 seconds.
+  intervalSeconds    Int
+  timeoutMs          Int           @default(10000)
+  expectedStatusMin  Int           @default(200)
+  expectedStatusMax  Int           @default(399)
+  enabled            Boolean       @default(true)
+  status             MonitorStatus @default(PENDING)
+  lastCheckedAt      DateTime?     @db.Timestamptz(3)
+  lastResponseTimeMs Int?
+  lastStatusCode     Int?
+  lastError          String?
+  /// Authentication attached to each check. NONE needs no stored credentials.
+  authType            MonitorAuthType @default(NONE)
+  /// AES-256-GCM payload "v1:<iv>:<tag>:<ciphertext>" (AAD = monitor id). Never plaintext.
+  encryptedAuthConfig String?
+  /// Bumped whenever credentials change; part of the OAuth2 token cache key.
+  authConfigVersion   Int             @default(1)
+  createdAt          DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime      @updatedAt @db.Timestamptz(3)
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checks    MonitorCheck[]
+  incidents Incident[]
+
+  @@index([userId, createdAt])
+  @@index([enabled])
+}
+
+model MonitorCheck {
+  id             String   @id @default(uuid()) @db.Uuid
+  monitorId      String   @db.Uuid
+  checkedAt      DateTime @default(now()) @db.Timestamptz(3)
+  success        Boolean
+  outcome        CheckOutcome
+  statusCode     Int?
+  responseTimeMs Int?
+  error          String?
+
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, checkedAt(sort: Desc)])
+  @@index([checkedAt])
+}
+
+model Incident {
+  id          String    @id @default(uuid()) @db.Uuid
+  monitorId   String    @db.Uuid
+  startedAt   DateTime  @db.Timestamptz(3)
+  resolvedAt  DateTime? @db.Timestamptz(3)
+  durationMs  Int?
+  cause       String
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+
+  monitor    Monitor                @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  // A partial unique index (one open incident per monitor) is created in the
+  // migration SQL because Prisma cannot express partial indexes.
+  @@index([monitorId, startedAt(sort: Desc)])
+  @@index([resolvedAt])
+}
+
+model NotificationSetting {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @db.Uuid
+  emailEnabled     Boolean  @default(true)
+  email            String
+  notifyOnDown     Boolean  @default(true)
+  notifyOnRecovery Boolean  @default(true)
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationDelivery {
+  id          String           @id @default(uuid()) @db.Uuid
+  incidentId  String           @db.Uuid
+  type        NotificationType
+  status      DeliveryStatus   @default(PENDING)
+  recipient   String?
+  error       String?
+  attempts    Int              @default(0)
+  sentAt      DateTime?        @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  // Guarantees at most one notification per incident transition.
+  @@unique([incidentId, type])
+  @@index([status])
+}

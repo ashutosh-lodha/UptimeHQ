@@ -1,0 +1,51 @@
+{
+  "name": "uptimehq-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "UptimeHQ API, scheduler and worker",
+  "type": "commonjs",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev:api": "tsx watch src/server.ts",
+    "dev:worker": "tsx watch src/worker.ts",
+    "dev:scheduler": "tsx watch src/scheduler.ts",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "start:api": "node dist/server.js",
+    "start:worker": "node dist/worker.js",
+    "start:scheduler": "node dist/scheduler.js",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "bullmq": "^5.56.0",
+    "express": "^5.1.0",
+    "ioredis": "^5.6.1",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "10.3.1",
+    "prisma": "^6.19.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.16.0",
+    "@types/nodemailer": "^6.4.17",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.1.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "4.1.12"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "effect": "3.22.4",
+    "deepmerge-ts": "8.0.2"
+  }
+}

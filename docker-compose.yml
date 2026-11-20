@@ -1,0 +1,163 @@
+name: uptimehq
+
+x-backend-env: &backend-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://${POSTGRES_USER:-uptimehq}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-uptimehq}?schema=public
+  REDIS_URL: redis://redis:6379
+  # Clerk: the API verifies session JWTs with CLERK_JWT_KEY and reads verified emails with CLERK_SECRET_KEY.
+  CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+  CLERK_JWT_KEY: ${CLERK_JWT_KEY:-}
+  CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:-}
+  APP_URL: ${APP_URL:-http://localhost}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-10}
+  SCHEDULER_RECONCILE_SECONDS: ${SCHEDULER_RECONCILE_SECONDS:-60}
+  # Endpoint check logs older than this are deleted automatically (min 30).
+  CHECK_RETENTION_DAYS: ${CHECK_RETENTION_DAYS:-30}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-}
+  # AES-256-GCM key for monitor credentials (64 hex chars). Optional unless monitors use authentication.
+  MONITOR_CREDENTIAL_ENCRYPTION_KEY: ${MONITOR_CREDENTIAL_ENCRYPTION_KEY:-}
+
+# Container stdout logs: rotated at 10 MB, 3 files kept (max ~30 MB per service, compressed),
+# so logs can never fill the disk.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+
+x-heartbeat-check: &heartbeat-check
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 30s
+
+services:
+  postgres:
+    logging: *default-logging
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-uptimehq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-uptimehq}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [backend]
+    # No published ports: reachable only from containers on the internal network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    logging: *default-logging
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    logging: *default-logging
+    build: ./backend
+    image: uptimehq-backend:latest
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      PORT: 4000
+    # Applies pending Prisma migrations, then starts the API.
+    command: ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [backend, edge]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  worker:
+    logging: *default-logging
+    image: uptimehq-backend:latest
+    restart: unless-stopped
+    environment: *backend-env
+    command: ["node", "dist/worker.js"]
+    depends_on:
+      api: { condition: service_healthy }
+    # backend: database + queue. egress: outbound internet for HTTP checks and SMTP.
+    networks: [backend, egress]
+    healthcheck:
+      <<: *heartbeat-check
+      test: ["CMD", "node", "-e", "const f=require('os').tmpdir()+'/worker.heartbeat';process.exit(Date.now()-Number(require('fs').readFileSync(f,'utf8'))<60000?0:1)"]
+
+  scheduler:
+    logging: *default-logging
+    image: uptimehq-backend:latest
+    restart: unless-stopped
+    environment: *backend-env
+    command: ["node", "dist/scheduler.js"]
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [backend]
+    healthcheck:
+      <<: *heartbeat-check
+      test: ["CMD", "node", "-e", "const f=require('os').tmpdir()+'/scheduler.heartbeat';process.exit(Date.now()-Number(require('fs').readFileSync(f,'utf8'))<60000?0:1)"]
+
+  frontend:
+    logging: *default-logging
+    build:
+      context: ./frontend
+      args:
+        # Public key, compiled into the SPA.
+        VITE_CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY:-}
+    image: uptimehq-frontend:latest
+    restart: unless-stopped
+    networks: [edge]
+
+  nginx:
+    logging: *default-logging
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/proxy_params.conf:/etc/nginx/proxy_params.conf:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      api: { condition: service_healthy }
+      frontend: { condition: service_healthy }
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  # Internal-only network: PostgreSQL and Redis have no route to or from the host/internet.
+  backend:
+    internal: true
+  edge: {}
+  egress: {}
+
+volumes:
+  postgres_data:
+  redis_data:

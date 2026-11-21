@@ -65,6 +65,50 @@ export async function responseSeries(
   return fillBuckets(rows, opts.range, now);
 }
 
+export interface MonitorSeries {
+  monitors: { id: string; name: string }[];
+  /** One row per bucket: `timestamp` plus each monitor's average response time (ms) keyed by monitor id. */
+  points: Array<{ timestamp: string } & Record<string, number | string | null>>;
+}
+
+/** Bucketed average response time for each of a user's monitors, in one query. */
+export async function perMonitorSeries(
+  db: PrismaClient,
+  opts: { userId: string; range: Range; now?: Date },
+): Promise<MonitorSeries> {
+  const now = opts.now ?? new Date();
+  const start = rangeStart(opts.range, now);
+  const { bucket, bucketMs } = RANGE_CONFIG[opts.range];
+  const [monitors, rows] = await Promise.all([
+    db.monitor.findMany({ where: { userId: opts.userId }, select: { id: true, name: true }, orderBy: { createdAt: 'asc' } }),
+    db.$queryRaw<{ bucket: Date; monitor_id: string; avg_ms: number | null }[]>`
+      SELECT date_bin(${bucket}::interval, c."checkedAt", ${BIN_ORIGIN}) AS bucket,
+             c."monitorId"::text AS monitor_id,
+             AVG(c."responseTimeMs") FILTER (WHERE c.success)::float AS avg_ms
+      FROM "MonitorCheck" c
+      JOIN "Monitor" m ON m.id = c."monitorId"
+      WHERE m."userId" = ${opts.userId}::uuid
+        AND c."checkedAt" >= ${start}
+      GROUP BY 1, 2`,
+  ]);
+  const byTime = new Map<number, Map<string, number | null>>();
+  for (const r of rows) {
+    const t = new Date(r.bucket).getTime();
+    if (!byTime.has(t)) byTime.set(t, new Map());
+    byTime.get(t)!.set(r.monitor_id, r.avg_ms != null ? Math.round(Number(r.avg_ms)) : null);
+  }
+  const origin = Date.UTC(2000, 0, 1);
+  const first = origin + Math.floor((start.getTime() - origin) / bucketMs) * bucketMs;
+  const points: MonitorSeries['points'] = [];
+  for (let t = first; t <= now.getTime(); t += bucketMs) {
+    const values = byTime.get(t);
+    const point: { timestamp: string } & Record<string, number | string | null> = { timestamp: new Date(t).toISOString() };
+    for (const m of monitors) point[m.id] = values?.get(m.id) ?? null;
+    points.push(point);
+  }
+  return { monitors, points };
+}
+
 /** Uptime and average response time per monitor over a range. */
 export async function uptimeByMonitor(
   db: PrismaClient,

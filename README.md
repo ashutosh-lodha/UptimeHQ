@@ -13,7 +13,7 @@
 ![Redis](https://img.shields.io/badge/Redis-7%20%2B%20BullMQ-DC382D?logo=redis&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 [![CI](https://github.com/ashutosh-lodha/UptimeHQ/actions/workflows/ci.yml/badge.svg)](https://github.com/ashutosh-lodha/UptimeHQ/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-107%20passing-16a34a)
+![Tests](https://img.shields.io/badge/tests-108%20passing-16a34a)
 
 </div>
 
@@ -64,7 +64,7 @@ It is built as a small production system rather than a demo: separate API, worke
 | **Results** | Every check stores status code, response time, outcome and error. Outcomes are classified as `SUCCESS`, `HTTP_STATUS_FAILURE`, `TIMEOUT`, `NETWORK_ERROR`, `AUTHENTICATION_FAILED` (401), `AUTHORIZATION_FAILED` (403) or `TOKEN_ACQUISITION_FAILED`. |
 | **Incidents** | An incident opens on the first failed check and resolves on the first successful one, with cause, start, end and duration. Exactly one open incident per monitor, enforced by the database. |
 | **Alerts** | One email when a service goes down and one when it recovers, sent via any SMTP provider (e.g. Resend), retried with exponential backoff, never duplicated. Per-user settings for recipient and alert types. |
-| **Dashboard** | Totals, overall uptime, average response time chart and recent incidents over 24 h, 7 d or 30 d. |
+| **Dashboard** | Totals, overall uptime, a response-time chart with **one coloured line per monitor** (pick which monitors to show from a dropdown) and recent incidents over 24 h, 7 d or 30 d. |
 | **Monitor page** | Live status, uptime, response-time chart, **paginated check history** with an All/Failed filter, incidents and configuration. |
 | **Protected APIs** | Bearer token, Basic auth, API key header, custom headers or OAuth2 client credentials. Secrets are encrypted with AES-256-GCM and never returned by the API. |
 | **Accounts** | Sign-up and sign-in with [Clerk](https://clerk.com) (email or Google). Every API request carries a Clerk session JWT verified locally (RS256). |
@@ -690,7 +690,7 @@ Until a domain is verified, Resend only sends from `onboarding@resend.dev` to yo
 
 ## Testing and CI
 
-The backend has **107 integration tests** that run against real PostgreSQL and Redis. External HTTP servers, OAuth servers, DNS, SMTP and Clerk are replaced with in-process fakes, so no network access or real credentials are needed.
+The backend has **108 integration tests** that run against real PostgreSQL and Redis. External HTTP servers, OAuth servers, DNS, SMTP and Clerk are replaced with in-process fakes, so no network access or real credentials are needed.
 
 | Area | Covered |
 | --- | --- |
@@ -701,7 +701,7 @@ The backend has **107 integration tests** that run against real PostgreSQL and R
 | Alerts | Sending, skipping, retry, de-duplication |
 | SSRF | IP ranges, IPv4-mapped IPv6, encoded IPs, hostnames, DNS results, redirects |
 | Authenticated monitors | Every auth method, restricted headers, HTTPS enforcement, encryption at rest, no secrets in responses, key handling, OAuth2 caching, refresh, single-flight, 401 retry, 403 no retry |
-| Data | Dashboard metrics, paginated check history, 30-day retention |
+| Data | Dashboard metrics, per-monitor chart series, paginated check history, 30-day retention |
 
 Run them locally (the tests truncate tables, so use disposable databases):
 
@@ -725,7 +725,7 @@ Override the defaults with `TEST_DATABASE_URL` and `TEST_REDIS_URL`.
 flowchart LR
     push(["push / pull request"]) --> be & fe
     subgraph be["backend job"]
-        b1["npm ci"] --> b2["prisma generate"] --> b3["typecheck"] --> b4["107 tests<br/>(Postgres + Redis services)"] --> b5["build"]
+        b1["npm ci"] --> b2["prisma generate"] --> b3["typecheck"] --> b4["108 tests<br/>(Postgres + Redis services)"] --> b5["build"]
     end
     subgraph fe["frontend job"]
         f1["npm ci"] --> f2["typecheck + build"]

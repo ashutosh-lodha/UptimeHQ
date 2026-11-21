@@ -41,6 +41,22 @@ describe('dashboard', () => {
     await request(app).get('/api/dashboard?range=1y').set('Authorization', `Bearer ${token}`).expect(400);
   });
 
+  it('returns a response-time series per monitor for the dashboard chart', async () => {
+    const { app, token, a, b, c } = await seed();
+    const other = await registerUser(app, { email: 'other@example.com', name: 'Other' });
+    await createMonitorRecord(other.user.id, { name: 'Not mine' });
+    const res = await request(app).get('/api/dashboard?range=24h').set('Authorization', `Bearer ${token}`).expect(200);
+    const ms = res.body.monitorSeries;
+    expect(ms.monitors.map((m: { name: string }) => m.name)).toEqual(['Alpha', 'Beta', 'Gamma']);
+    expect(ms.points.length).toBe(res.body.series.length);
+    const values = (id: string) => ms.points.map((p: Record<string, number | null>) => p[id]).filter((v: number | null) => v != null);
+    expect(values(a.id).sort()).toEqual([100, 300]);
+    // Beta's only successful check was 200 ms; its failed check has no response time.
+    expect(values(b.id)).toEqual([200]);
+    expect(values(c.id)).toEqual([]);
+    expect(Object.keys(ms.points[0]).sort()).toEqual([a.id, b.id, c.id, 'timestamp'].sort());
+  });
+
   it('returns per-monitor stats and check history', async () => {
     const { app, token, a } = await seed();
     const auth = { Authorization: `Bearer ${token}` };

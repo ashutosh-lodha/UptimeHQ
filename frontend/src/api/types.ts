@@ -101,6 +101,11 @@ export interface CheckPage {
   pageCount: number;
 }
 
+export interface MonitorSeries {
+  monitors: { id: string; name: string }[];
+  points: Array<{ timestamp: string } & Record<string, number | string | null>>;
+}
+
 export interface DashboardData {
   range: Range;
   monitors: { total: number; up: number; down: number; paused: number; pending: number };
@@ -108,6 +113,7 @@ export interface DashboardData {
   avgResponseMs: number | null;
   totalChecks: number;
   series: SeriesPoint[];
+  monitorSeries: MonitorSeries;
   recentIncidents: Incident[];
 }
 

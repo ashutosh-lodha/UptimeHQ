@@ -5,7 +5,7 @@ import { useAsync } from '../lib/useAsync';
 import { Link } from '../lib/router';
 import { formatMs, formatPercent } from '../lib/format';
 import { EmptyState, ErrorState, MetricCard, PageHeader, RangeFilter, Spinner } from '../components/ui';
-import { ResponseChart } from '../components/ResponseChart';
+import { MonitorResponseChart } from '../components/MonitorResponseChart';
 import { IncidentTable } from '../components/IncidentTable';
 
 export function DashboardPage() {
@@ -47,10 +47,10 @@ export function DashboardPage() {
             </div>
             <section className="card">
               <div className="card-header">
-                <h2>Average response time</h2>
-                <span className="muted small">Across all monitors</span>
+                <h2>Response time by monitor</h2>
+                <span className="muted small">Average per {range === '24h' ? '5 minutes' : range === '7d' ? 'hour' : '6 hours'}</span>
               </div>
-              <ResponseChart series={data.series} range={range} />
+              <MonitorResponseChart data={data.monitorSeries} range={range} />
             </section>
             <section className="card">
               <div className="card-header">

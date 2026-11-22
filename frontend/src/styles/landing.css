@@ -101,13 +101,9 @@
 /* Product screenshots */
 .lp-shot { display: block; width: 100%; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
 .lp-shot img { display: block; width: 100%; height: auto; }
-.lp-detects .lp-shot img { aspect-ratio: 2 / 1; object-fit: cover; object-position: left top; }
-.lp-tour { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
-.lp-tour figure { margin: 0; min-width: 0; }
-.lp-tour h3 { font-size: 15.5px; margin-top: 12px; }
-.lp-tour p { color: var(--text-muted); margin-top: 4px; }
-.lp-section-band { padding-top: 0; }
-.lp #screens { scroll-margin-top: 72px; }
+.lp-examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 28px; }
+.lp-examples figure { margin: 0; min-width: 0; }
+.lp-examples figcaption { color: var(--text-muted); font-size: 13.5px; margin-top: 8px; }
 @media (max-width: 760px) {
-  .lp-tour { grid-template-columns: minmax(0, 1fr); }
+  .lp-examples { grid-template-columns: minmax(0, 1fr); }
 }

@@ -45,18 +45,18 @@ const FEATURES = [
 
 /** Failure types the checker classifies (backend: httpCheck.classifyError + auth outcomes). */
 const DETECTS = [
-  { tag: 'Bad status', tone: 'down', title: 'Server errors (5xx)', shot: 'server-error', text: '500, 502, 503 or 504 from a crashed app, a bad deploy or an overloaded backend.' },
-  { tag: 'Bad status', tone: 'down', title: 'Unexpected status codes', shot: 'unexpected-status', text: 'A 404, 410 or any code outside the range you marked as healthy.' },
-  { tag: 'Timeout', tone: 'warn', title: 'No response in time', shot: 'timeout', text: 'No response within your timeout, or a connection that never completes.' },
-  { tag: 'Network', tone: 'down', title: 'Connection refused or reset', shot: 'refused', text: 'Nothing listening on the port, or the server drops the connection.' },
-  { tag: 'Network', tone: 'down', title: 'DNS failures', shot: 'dns', text: 'The domain stops resolving, has expired or its records are misconfigured.' },
-  { tag: 'Network', tone: 'down', title: 'Host unreachable', shot: 'unreachable', text: 'The server or its network is offline and cannot be routed to.' },
-  { tag: 'Network', tone: 'down', title: 'SSL/TLS certificate problems', shot: 'tls', text: 'Expired, self-signed or wrong-hostname certificates that browsers would reject.' },
-  { tag: 'Bad status', tone: 'down', title: 'Redirect loops', shot: 'redirect-loop', text: 'A URL that keeps redirecting instead of ever returning a page.' },
-  { tag: 'Auth failed', tone: 'warn', title: 'Rejected credentials (401)', shot: 'unauthorized', text: 'Your API key, token or password stopped working or was revoked.' },
-  { tag: 'Forbidden', tone: 'warn', title: 'Access denied (403)', shot: 'forbidden', text: 'The endpoint answers but refuses the monitor access.' },
-  { tag: 'Token error', tone: 'warn', title: 'OAuth2 token failures', shot: 'token', text: 'The token server is down or rejects the client ID and secret.' },
-  { tag: 'Blocked', tone: 'muted', title: 'Unsafe destinations', shot: 'blocked', text: 'URLs that resolve to private or internal addresses are refused, never fetched.' },
+  { tag: 'Bad status', tone: 'down', title: 'Server errors (5xx)', text: '500, 502, 503 or 504 from a crashed app, a bad deploy or an overloaded backend.' },
+  { tag: 'Bad status', tone: 'down', title: 'Unexpected status codes', text: 'A 404, 410 or any code outside the range you marked as healthy.' },
+  { tag: 'Timeout', tone: 'warn', title: 'No response in time', text: 'No response within your timeout, or a connection that never completes.' },
+  { tag: 'Network', tone: 'down', title: 'Connection refused or reset', text: 'Nothing listening on the port, or the server drops the connection.' },
+  { tag: 'Network', tone: 'down', title: 'DNS failures', text: 'The domain stops resolving, has expired or its records are misconfigured.' },
+  { tag: 'Network', tone: 'down', title: 'Host unreachable', text: 'The server or its network is offline and cannot be routed to.' },
+  { tag: 'Network', tone: 'down', title: 'SSL/TLS certificate problems', text: 'Expired, self-signed or wrong-hostname certificates that browsers would reject.' },
+  { tag: 'Bad status', tone: 'down', title: 'Redirect loops', text: 'A URL that keeps redirecting instead of ever returning a page.' },
+  { tag: 'Auth failed', tone: 'warn', title: 'Rejected credentials (401)', text: 'Your API key, token or password stopped working or was revoked.' },
+  { tag: 'Forbidden', tone: 'warn', title: 'Access denied (403)', text: 'The endpoint answers but refuses the monitor access.' },
+  { tag: 'Token error', tone: 'warn', title: 'OAuth2 token failures', text: 'The token server is down or rejects the client ID and secret.' },
+  { tag: 'Blocked', tone: 'muted', title: 'Unsafe destinations', text: 'URLs that resolve to private or internal addresses are refused, never fetched.' },
 ];
 
 const LIFECYCLE = [
@@ -87,9 +87,9 @@ function Preview() {
   );
 }
 
-const TOUR = [
-  { shot: 'monitors', title: 'Every service at a glance', text: 'Status, uptime and response time for every monitor.' },
-  { shot: 'incidents', title: 'A cause for every incident', text: 'What failed, when it started and how long it lasted.' },
+const EXAMPLES = [
+  { shot: 'server-error', title: 'A server error' },
+  { shot: 'dns', title: 'A DNS failure' },
 ];
 
 export function LandingPage() {
@@ -177,9 +177,6 @@ export function LandingPage() {
             <ul className="lp-detects">
               {DETECTS.map((d) => (
                 <li key={d.title}>
-                  <a className="lp-shot" href={`/screens/down-${d.shot}.webp`} target="_blank" rel="noreferrer">
-                    <img src={`/screens/down-${d.shot}.webp`} loading="lazy" alt={`UptimeHQ detecting: ${d.title}`} />
-                  </a>
                   <span className={`lp-chip lp-chip-${d.tone}`}>{d.tag}</span>
                   <div>
                     <h3>{d.title}</h3>
@@ -188,6 +185,16 @@ export function LandingPage() {
                 </li>
               ))}
             </ul>
+            <div className="lp-examples">
+              {EXAMPLES.map((e) => (
+                <figure key={e.shot}>
+                  <a className="lp-shot" href={`/screens/down-${e.shot}.webp`} target="_blank" rel="noreferrer">
+                    <img src={`/screens/down-${e.shot}.webp`} loading="lazy" alt={`UptimeHQ detecting ${e.title.toLowerCase()}`} />
+                  </a>
+                  <figcaption>Example: {e.title.toLowerCase()}</figcaption>
+                </figure>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -211,29 +218,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="screens" className="lp-section lp-section-alt">
-          <div className="lp-container">
-            <div className="lp-section-head">
-              <h2>See it in action</h2>
-              <p>Real checks against our test lab, which breaks endpoints on purpose.</p>
-            </div>
-            <div className="lp-tour">
-              {TOUR.map((t) => (
-                <figure key={t.shot}>
-                  <a className="lp-shot" href={`/screens/${t.shot}.webp`} target="_blank" rel="noreferrer">
-                    <img src={`/screens/${t.shot}.webp`} loading="lazy" alt={t.title} />
-                  </a>
-                  <figcaption>
-                    <h3>{t.title}</h3>
-                    <p>{t.text}</p>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="how" className="lp-section">
+        <section id="how" className="lp-section lp-section-alt">
           <div className="lp-container">
             <div className="lp-section-head">
               <h2>Up and running in a minute</h2>
@@ -250,7 +235,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="lp-section lp-section-band">
+        <section className="lp-section">
           <div className="lp-container">
             <div className="lp-band">
               <div>

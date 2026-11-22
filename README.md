@@ -121,17 +121,11 @@ Captured from the real UI with real checks against the [test lab](#test-lab), us
 | --- | --- |
 | ![Monitor page](docs/screenshots/monitor-recovered.png) | ![Monitor form](docs/screenshots/monitor-form.png) |
 
-### Every type of downtime detected
+### Downtime examples
 
-<table>
-<tr><td width="50%"><b>Server error (5xx)</b><br/><img src="docs/screenshots/down-server-error.png" alt="Server error (5xx)" /></td><td width="50%"><b>Unexpected status (404)</b><br/><img src="docs/screenshots/down-unexpected-status.png" alt="Unexpected status (404)" /></td></tr>
-<tr><td width="50%"><b>Redirect loop</b><br/><img src="docs/screenshots/down-redirect-loop.png" alt="Redirect loop" /></td><td width="50%"><b>No response (timeout)</b><br/><img src="docs/screenshots/down-timeout.png" alt="No response (timeout)" /></td></tr>
-<tr><td width="50%"><b>Connection never completes</b><br/><img src="docs/screenshots/down-connect-timeout.png" alt="Connection never completes" /></td><td width="50%"><b>Connection refused</b><br/><img src="docs/screenshots/down-refused.png" alt="Connection refused" /></td></tr>
-<tr><td width="50%"><b>Connection reset</b><br/><img src="docs/screenshots/down-reset.png" alt="Connection reset" /></td><td width="50%"><b>DNS failure</b><br/><img src="docs/screenshots/down-dns.png" alt="DNS failure" /></td></tr>
-<tr><td width="50%"><b>Host unreachable</b><br/><img src="docs/screenshots/down-unreachable.png" alt="Host unreachable" /></td><td width="50%"><b>TLS certificate problem</b><br/><img src="docs/screenshots/down-tls.png" alt="TLS certificate problem" /></td></tr>
-<tr><td width="50%"><b>Unsafe destination blocked</b><br/><img src="docs/screenshots/down-blocked.png" alt="Unsafe destination blocked" /></td><td width="50%"><b>Rejected credentials (401)</b><br/><img src="docs/screenshots/down-unauthorized.png" alt="Rejected credentials (401)" /></td></tr>
-<tr><td width="50%"><b>Access denied (403)</b><br/><img src="docs/screenshots/down-forbidden.png" alt="Access denied (403)" /></td><td width="50%"><b>OAuth2 token failure</b><br/><img src="docs/screenshots/down-token.png" alt="OAuth2 token failure" /></td></tr>
-</table>
+| Server error (503) | DNS failure |
+| --- | --- |
+| ![Server error detected](docs/screenshots/down-server-error.png) | ![DNS failure detected](docs/screenshots/down-dns.png) |
 
 ### Public pages, test lab and mobile
 
@@ -146,13 +140,6 @@ Captured from the real UI with real checks against the [test lab](#test-lab), us
 | Dashboard | Monitors | Landing | Sign in |
 | --- | --- | --- | --- |
 | <img src="docs/screenshots/dashboard-mobile.png" width="200" alt="Dashboard on a phone" /> | <img src="docs/screenshots/monitors-mobile.png" width="200" alt="Monitors on a phone" /> | <img src="docs/screenshots/landing-mobile.png" width="200" alt="Landing page on a phone" /> | <img src="docs/screenshots/sign-in-mobile.png" width="200" alt="Sign in on a phone" /> |
-
-<details>
-<summary>Full landing page</summary>
-
-![Full landing page](docs/screenshots/landing-full.png)
-
-</details>
 
 ---
 

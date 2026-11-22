@@ -13,11 +13,13 @@
 ![Redis](https://img.shields.io/badge/Redis-7%20%2B%20BullMQ-DC382D?logo=redis&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 [![CI](https://github.com/ashutosh-lodha/UptimeHQ/actions/workflows/ci.yml/badge.svg)](https://github.com/ashutosh-lodha/UptimeHQ/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-108%20passing-16a34a)
+![Tests](https://img.shields.io/badge/tests-152%20passing-16a34a)
 
 </div>
 
-![UptimeHQ landing page](docs/screenshots/landing.png)
+![UptimeHQ dashboard](docs/screenshots/dashboard.png)
+
+**Live:** [uptimehq.ashutoshdev.online](https://uptimehq.ashutoshdev.online)
 
 UptimeHQ is a self-hosted, full-stack uptime monitor. Add any HTTP(S) website or API, public or protected by credentials, and UptimeHQ checks it on a schedule from a background worker. It records every response, opens an incident the moment a check fails, resolves it on recovery, and emails you at both transitions.
 
@@ -30,6 +32,7 @@ It is built as a small production system rather than a demo: separate API, worke
 - [Features](#features)
 - [What it detects](#what-it-detects)
 - [Screenshots](#screenshots)
+- [Test lab](#test-lab)
 - [Architecture](#architecture)
   - [System overview](#system-overview)
   - [Services](#services)
@@ -82,7 +85,7 @@ Every failed check is classified, so an alert says *why* a service is down, not 
 | Server errors (5xx) | `HTTP_STATUS_FAILURE` | 500, 502, 503 or 504 from a crashed app, a bad deploy or an overloaded backend. |
 | Unexpected status codes | `HTTP_STATUS_FAILURE` | A 404, 410 or any code outside the range you marked as healthy. |
 | Redirect loops | `HTTP_STATUS_FAILURE` | A URL that keeps redirecting instead of ever returning a page. |
-| Slow or hanging responses | `TIMEOUT` | No response within your timeout, or a connection that never completes. |
+| No response in time | `TIMEOUT` | No response within your timeout, or a connection that never completes. |
 | Connection refused or reset | `NETWORK_ERROR` | Nothing listening on the port, or the server drops the connection. |
 | DNS failures | `NETWORK_ERROR` | The domain stops resolving, has expired or its records are misconfigured. |
 | Host unreachable | `NETWORK_ERROR` | The server or its network is offline and cannot be routed to. |
@@ -104,13 +107,74 @@ Every failed check is classified, so an alert says *why* a service is down, not 
 
 ## Screenshots
 
-| Landing page | Sign in (Clerk) |
+Captured from the real UI with real checks against the [test lab](#test-lab), using a demo account.
+
+| Dashboard: one line per monitor | Choose which monitors to show |
+| --- | --- |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Monitor picker](docs/screenshots/dashboard-picker.png) |
+
+| Monitors | Incidents |
+| --- | --- |
+| ![Monitors](docs/screenshots/monitors.png) | ![Incidents](docs/screenshots/incidents.png) |
+
+| An outage and its recovery | Adding an authenticated monitor |
+| --- | --- |
+| ![Monitor page](docs/screenshots/monitor-recovered.png) | ![Monitor form](docs/screenshots/monitor-form.png) |
+
+### Every type of downtime detected
+
+<table>
+<tr><td width="50%"><b>Server error (5xx)</b><br/><img src="docs/screenshots/down-server-error.png" alt="Server error (5xx)" /></td><td width="50%"><b>Unexpected status (404)</b><br/><img src="docs/screenshots/down-unexpected-status.png" alt="Unexpected status (404)" /></td></tr>
+<tr><td width="50%"><b>Redirect loop</b><br/><img src="docs/screenshots/down-redirect-loop.png" alt="Redirect loop" /></td><td width="50%"><b>No response (timeout)</b><br/><img src="docs/screenshots/down-timeout.png" alt="No response (timeout)" /></td></tr>
+<tr><td width="50%"><b>Connection never completes</b><br/><img src="docs/screenshots/down-connect-timeout.png" alt="Connection never completes" /></td><td width="50%"><b>Connection refused</b><br/><img src="docs/screenshots/down-refused.png" alt="Connection refused" /></td></tr>
+<tr><td width="50%"><b>Connection reset</b><br/><img src="docs/screenshots/down-reset.png" alt="Connection reset" /></td><td width="50%"><b>DNS failure</b><br/><img src="docs/screenshots/down-dns.png" alt="DNS failure" /></td></tr>
+<tr><td width="50%"><b>Host unreachable</b><br/><img src="docs/screenshots/down-unreachable.png" alt="Host unreachable" /></td><td width="50%"><b>TLS certificate problem</b><br/><img src="docs/screenshots/down-tls.png" alt="TLS certificate problem" /></td></tr>
+<tr><td width="50%"><b>Unsafe destination blocked</b><br/><img src="docs/screenshots/down-blocked.png" alt="Unsafe destination blocked" /></td><td width="50%"><b>Rejected credentials (401)</b><br/><img src="docs/screenshots/down-unauthorized.png" alt="Rejected credentials (401)" /></td></tr>
+<tr><td width="50%"><b>Access denied (403)</b><br/><img src="docs/screenshots/down-forbidden.png" alt="Access denied (403)" /></td><td width="50%"><b>OAuth2 token failure</b><br/><img src="docs/screenshots/down-token.png" alt="OAuth2 token failure" /></td></tr>
+</table>
+
+### Public pages, test lab and mobile
+
+| Landing page | Sign in |
 | --- | --- |
 | ![Landing page](docs/screenshots/landing.png) | ![Sign in](docs/screenshots/sign-in.png) |
 
-| Landing on a phone | Sign in on a phone | Full landing page |
-| --- | --- | --- |
-| <img src="docs/screenshots/landing-mobile.png" width="240" alt="Landing page on a phone" /> | <img src="docs/screenshots/sign-in-mobile.png" width="240" alt="Sign in on a phone" /> | <img src="docs/screenshots/landing-full.png" width="420" alt="Full landing page" /> |
+| Test lab: break any endpoint from a dropdown |
+| --- |
+| ![Test lab](docs/screenshots/testlab.png) |
+
+| Dashboard | Monitors | Landing | Sign in |
+| --- | --- | --- | --- |
+| <img src="docs/screenshots/dashboard-mobile.png" width="200" alt="Dashboard on a phone" /> | <img src="docs/screenshots/monitors-mobile.png" width="200" alt="Monitors on a phone" /> | <img src="docs/screenshots/landing-mobile.png" width="200" alt="Landing page on a phone" /> | <img src="docs/screenshots/sign-in-mobile.png" width="200" alt="Sign in on a phone" /> |
+
+<details>
+<summary>Full landing page</summary>
+
+![Full landing page](docs/screenshots/landing-full.png)
+
+</details>
+
+---
+
+## Test lab
+
+[`testlab/`](testlab/README.md) is a separate app, served at [`/testlab/`](https://uptimehq.ashutoshdev.online/testlab/), that breaks endpoints on purpose so every detection path can be tested end to end.
+
+- **Endpoints you control:** a website, a JSON API, a `HEAD` check, one endpoint per authentication method and an OAuth2 token server. Pick a failure or write a custom response, and the next check sees it.
+- **Always-failing URLs:** one per failure type, plus broken token endpoints. Network failures (DNS, TLS, refused, reset, unreachable) happen at the network layer rather than being imitated with status codes.
+- **Isolated:** its own container and network, with no database, secrets, cookies or internet access. Changing anything needs a password.
+
+On the server, print the password:
+
+```bash
+docker compose exec -T testlab cat /data/password
+```
+
+Add all 30 lab monitors to an existing account (22 are always down, so expect 22 alert emails; append `--paused` to avoid that):
+
+```bash
+docker compose exec -T testlab node src/monitors.js | docker compose exec -T api node dist/cli/importMonitors.js you@example.com
+```
 
 ---
 
@@ -142,6 +206,7 @@ flowchart LR
     end
 
     user -->|HTTPS| nginx
+    nginx -->|/testlab| lab["testlab<br/>endpoints that fail on demand"]
     nginx -->|/| fe
     nginx -->|/api| api
     user -. sign-in widget .-> clerk
@@ -160,7 +225,7 @@ The API never performs checks. It stores configuration and tells the scheduler t
 
 ### Services
 
-All seven services run from one `docker-compose.yml`. The `api`, `worker` and `scheduler` share one backend image and differ only in the command they run.
+All eight services run from one `docker-compose.yml`. The `api`, `worker` and `scheduler` share one backend image and differ only in the command they run.
 
 | Service | Image | Responsibility |
 | --- | --- | --- |
@@ -169,6 +234,7 @@ All seven services run from one `docker-compose.yml`. The `api`, `worker` and `s
 | `api` | built from `backend/` | Clerk JWT verification, user provisioning, monitor CRUD (including credential encryption), incidents, dashboard aggregates and settings. Applies Prisma migrations on start. |
 | `scheduler` | backend image | Keeps exactly one BullMQ job scheduler per enabled monitor, handles `sync` jobs from the API, reconciles Redis with PostgreSQL every 60 s, re-queues unsent alerts and deletes check records older than the retention window. |
 | `worker` | backend image | Runs checks (concurrency 10 by default) and email deliveries. |
+| `testlab` | built from `testlab/` on the host | Separate app at `/testlab` that simulates every failure. Own internal network, no access to data or secrets. |
 | `postgres` | `postgres:16-alpine` | System of record. Internal network only. |
 | `redis` | `redis:7-alpine` | Queues, per-monitor locks and the OAuth2 token cache (AOF persistence). Internal network only. |
 
@@ -193,6 +259,10 @@ flowchart TB
             worker["worker"]
             scheduler["scheduler"]
         end
+        subgraph labNet["lab · internal: true"]
+            nginx2["nginx"]
+            testlab["testlab"]
+        end
         subgraph egressNet["egress"]
             worker2["worker"]
         end
@@ -200,11 +270,13 @@ flowchart TB
     internet <-->|published ports| nginx
     worker2 -->|checks · SMTP| internet
     api -. same container .- api2
+    nginx -. same container .- nginx2
     worker -. same container .- worker2
 ```
 
 - `backend` is an **internal** Docker network: PostgreSQL and Redis have no published ports and no route to or from the internet.
 - Only `nginx` publishes ports. The API is reachable only through it.
+- The `testlab` shares an internal `lab` network with `nginx` only.
 - Only the `worker` joins the `egress` network, because it is the only process that must reach the outside world (monitored URLs and SMTP).
 
 ### Sign-in and API authentication
@@ -543,6 +615,7 @@ On `PATCH /api/monitors/:id`, omit `auth` to keep credentials, send a new `auth`
 │       ├── components/              # Layout, charts, tables, auth fields, pager, ...
 │       ├── lib/                     # router, auth bridge, formatting, hooks
 │       └── styles/                  # global.css, landing.css
+├── testlab/                         # separate app: endpoints that fail on demand
 ├── nginx/                           # reverse proxy: nginx.conf (HTTP), https.conf (template)
 ├── scripts/deploy.sh                # pull, rebuild, wait healthy (used by CD)
 ├── docs/screenshots/
@@ -690,7 +763,7 @@ Until a domain is verified, Resend only sends from `onboarding@resend.dev` to yo
 
 ## Testing and CI
 
-The backend has **108 integration tests** that run against real PostgreSQL and Redis. External HTTP servers, OAuth servers, DNS, SMTP and Clerk are replaced with in-process fakes, so no network access or real credentials are needed.
+There are **152 tests**: 41 for the test lab (`cd testlab && npm test`) and **111 backend integration tests** that run against real PostgreSQL and Redis. External HTTP servers, OAuth servers, DNS, SMTP and Clerk are replaced with in-process fakes, so no network access or real credentials are needed.
 
 | Area | Covered |
 | --- | --- |
@@ -701,6 +774,7 @@ The backend has **108 integration tests** that run against real PostgreSQL and R
 | Alerts | Sending, skipping, retry, de-duplication |
 | SSRF | IP ranges, IPv4-mapped IPv6, encoded IPs, hostnames, DNS results, redirects |
 | Authenticated monitors | Every auth method, restricted headers, HTTPS enforcement, encryption at rest, no secrets in responses, key handling, OAuth2 caching, refresh, single-flight, 401 retry, 403 no retry |
+| Test lab import | Account scoping, encryption, repeat runs, invalid input |
 | Data | Dashboard metrics, per-monitor chart series, paginated check history, 30-day retention |
 
 Run them locally (the tests truncate tables, so use disposable databases):
@@ -723,14 +797,17 @@ Override the defaults with `TEST_DATABASE_URL` and `TEST_REDIS_URL`.
 
 ```mermaid
 flowchart LR
-    push(["push / pull request"]) --> be & fe
+    push(["push / pull request"]) --> be & fe & tl
     subgraph be["backend job"]
-        b1["npm ci"] --> b2["prisma generate"] --> b3["typecheck"] --> b4["108 tests<br/>(Postgres + Redis services)"] --> b5["build"]
+        b1["npm ci"] --> b2["prisma generate"] --> b3["typecheck"] --> b4["111 tests<br/>(Postgres + Redis services)"] --> b5["build"]
     end
     subgraph fe["frontend job"]
         f1["npm ci"] --> f2["typecheck + build"]
     end
-    be & fe --> dk
+    subgraph tl["testlab job"]
+        t1["41 tests"]
+    end
+    be & fe & tl --> dk
     subgraph dk["docker job"]
         d1["compose config"] --> d2["build images"] --> d3["main only: push to GHCR<br/>tagged with commit SHA + latest"]
     end
@@ -843,7 +920,7 @@ Every push to `main` that passes CI is deployed automatically:
 2. The `deploy` job connects to the VM over SSH and runs [scripts/deploy.sh](scripts/deploy.sh) for that exact commit: check out the commit (compose file, NGINX config), pull the images with the same SHA, restart, wait until every container is healthy (or fail with logs after 5 minutes) and prune old images.
 3. A smoke test calls `https://<domain>/api/health`.
 
-The server never builds anything, so deploys take seconds and every running image is one that passed the tests. The deployed SHA is recorded as `IMAGE_TAG` in the server's `.env`, so restarts keep the same version. Migrations run automatically when the API starts.
+The server builds nothing except the copy-only test lab image, so deploys take seconds and the app's images are the ones that passed the tests. The deployed SHA is recorded as `IMAGE_TAG` in the server's `.env`, so restarts keep the same version. Migrations run automatically when the API starts.
 
 One-time setup:
 
@@ -939,6 +1016,7 @@ All endpoints are under `/api` and, except `/health`, require `Authorization: Be
 ## Known limitations
 
 - **DNS rebinding window.** Native `fetch` can't pin the IP it connects to. The checker validates DNS immediately before each request and redirect hop, but a malicious DNS server with a very short TTL could in theory answer differently between the two lookups. A full fix needs a custom undici connector.
+- **Stalled bodies count as up.** A response's status line decides the result. If a server sends healthy headers and then hangs mid-body, the check records success with a response time equal to the timeout. The test lab can reproduce this.
 - **Single vantage point.** Checks run from one VM, so a network problem on the VM shows up as downtime on every monitor.
 - **Session tokens.** Clerk session JWTs live about 60 seconds. After sign-out, an already-issued token remains valid until it expires.
 - **OAuth2.** Only the client credentials grant is supported.

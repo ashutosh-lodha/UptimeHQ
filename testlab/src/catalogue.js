@@ -31,6 +31,7 @@ export const MODES = {
   403: { group: 'Access', label: 'Access denied (403)', status: 403, expect: 'AUTHORIZATION_FAILED' },
 
   timeout: { group: 'Timeout', label: 'No response (timeout)', action: 'hang', expect: 'TIMEOUT' },
+  stall: { group: 'Timeout', label: 'Headers sent, body hangs', action: 'stall', expect: 'TIMEOUT' },
   blackhole: { group: 'Timeout', label: 'Connection never completes', to: 'blackhole', expect: 'TIMEOUT' },
 
   drop: { group: 'Network', label: 'Connection reset', action: 'drop', expect: 'NETWORK_ERROR' },
@@ -41,7 +42,6 @@ export const MODES = {
   blocked: { group: 'Network', label: 'Unsafe (private) destination', to: 'blocked', expect: 'NETWORK_ERROR' },
 
   flapping: { group: 'Advanced', label: 'Flapping (up 1 min, down 1 min)', action: 'flap', expect: null },
-  stall: { group: 'Advanced', label: 'Headers sent, body hangs', action: 'stall', expect: null },
   custom: { group: 'Advanced', label: 'Custom response…', action: 'custom', expect: null },
 };
 
@@ -91,7 +91,7 @@ export function credentials(password) {
 
 /**
  * Monitor definitions covering every endpoint type and every kind of downtime.
- * Flapping and the stalled body are left out: one floods the inbox, the other is not a failure.
+ * Flapping is left out, because it would flood the inbox.
  */
 export function monitorList(publicUrl, password) {
   const creds = credentials(password);

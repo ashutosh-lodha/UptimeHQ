@@ -47,7 +47,7 @@ const FEATURES = [
 const DETECTS = [
   { tag: 'Bad status', tone: 'down', title: 'Server errors (5xx)', text: '500, 502, 503 or 504 from a crashed app, a bad deploy or an overloaded backend.' },
   { tag: 'Bad status', tone: 'down', title: 'Unexpected status codes', text: 'A 404, 410 or any code outside the range you marked as healthy.' },
-  { tag: 'Timeout', tone: 'warn', title: 'No response in time', text: 'No response within your timeout, or a connection that never completes.' },
+  { tag: 'Timeout', tone: 'warn', title: 'No response in time', text: 'No response within your timeout, a connection that never completes, or a body that hangs midway.' },
   { tag: 'Network', tone: 'down', title: 'Connection refused or reset', text: 'Nothing listening on the port, or the server drops the connection.' },
   { tag: 'Network', tone: 'down', title: 'DNS failures', text: 'The domain stops resolving, has expired or its records are misconfigured.' },
   { tag: 'Network', tone: 'down', title: 'Host unreachable', text: 'The server or its network is offline and cannot be routed to.' },

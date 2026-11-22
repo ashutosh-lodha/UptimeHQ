@@ -20,10 +20,10 @@ Sign in to UptimeHQ once, then run this on the server with the email you sign in
 docker compose exec -T testlab node src/monitors.js | docker compose exec -T api node dist/cli/importMonitors.js you@example.com
 ```
 
-It creates 30 monitors and is safe to run again (existing names are skipped):
+It creates 31 monitors and is safe to run again (existing names are skipped):
 
 - **`Lab: …` (8, every 30 seconds):** the endpoints you control, one per endpoint and authentication type. They start healthy.
-- **`Sim: …` (22, every 5 minutes):** one per failure type. They are always down, so **each sends one "down" email** when first checked. Add `--paused` to import everything paused and resume what you need.
+- **`Sim: …` (23, every 5 minutes):** one per failure type. They are always down, so **each sends one "down" email** when first checked. Add `--paused` to import everything paused and resume what you need.
 
 ## Endpoints
 
@@ -44,6 +44,7 @@ It creates 30 monitors and is safe to run again (existing names are skipped):
 | 401 | `AUTHENTICATION_FAILED` | Returns 401 |
 | 403 | `AUTHORIZATION_FAILED` | Returns 403 |
 | No response | `TIMEOUT` | Holds the request for 35 seconds |
+| Headers sent, body hangs | `TIMEOUT` | Sends a 200 and part of the body, then nothing |
 | Connection never completes | `TIMEOUT` | Redirects to an address that never answers |
 | Connection reset | `NETWORK_ERROR` | NGINX resets the TCP connection |
 | Connection refused | `NETWORK_ERROR` | Redirects to port 3389 of the same VM (open in GCP's default firewall, nothing listening) |
@@ -55,7 +56,7 @@ It creates 30 monitors and is safe to run again (existing names are skipped):
 
 Network failures are real: the checker follows the redirect and fails at that layer. If your firewall drops port 3389, "refused" is recorded as a timeout.
 
-Two advanced modes have no fixed result. **Flapping** alternates each minute (and sends an email on every change). **Headers sent, body hangs** is currently recorded as up, because the checker judges a response by its status line.
+**Flapping** has no fixed result: it alternates each minute and sends an email on every change.
 
 ## Security
 

@@ -13,7 +13,7 @@
 ![Redis](https://img.shields.io/badge/Redis-7%20%2B%20BullMQ-DC382D?logo=redis&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 [![CI](https://github.com/ashutosh-lodha/UptimeHQ/actions/workflows/ci.yml/badge.svg)](https://github.com/ashutosh-lodha/UptimeHQ/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-152%20passing-16a34a)
+![Tests](https://img.shields.io/badge/tests-158%20passing-16a34a)
 
 </div>
 
@@ -85,7 +85,7 @@ Every failed check is classified, so an alert says *why* a service is down, not 
 | Server errors (5xx) | `HTTP_STATUS_FAILURE` | 500, 502, 503 or 504 from a crashed app, a bad deploy or an overloaded backend. |
 | Unexpected status codes | `HTTP_STATUS_FAILURE` | A 404, 410 or any code outside the range you marked as healthy. |
 | Redirect loops | `HTTP_STATUS_FAILURE` | A URL that keeps redirecting instead of ever returning a page. |
-| No response in time | `TIMEOUT` | No response within your timeout, or a connection that never completes. |
+| No response in time | `TIMEOUT` | No response within your timeout, a connection that never completes, or a body that hangs midway. |
 | Connection refused or reset | `NETWORK_ERROR` | Nothing listening on the port, or the server drops the connection. |
 | DNS failures | `NETWORK_ERROR` | The domain stops resolving, has expired or its records are misconfigured. |
 | Host unreachable | `NETWORK_ERROR` | The server or its network is offline and cannot be routed to. |
@@ -157,7 +157,7 @@ On the server, print the password:
 docker compose exec -T testlab cat /data/password
 ```
 
-Add all 30 lab monitors to an existing account (22 are always down, so expect 22 alert emails; append `--paused` to avoid that):
+Add all 31 lab monitors to an existing account (23 are always down, so expect 23 alert emails; append `--paused` to avoid that):
 
 ```bash
 docker compose exec -T testlab node src/monitors.js | docker compose exec -T api node dist/cli/importMonitors.js you@example.com
@@ -216,7 +216,7 @@ All eight services run from one `docker-compose.yml`. The `api`, `worker` and `s
 
 | Service | Image | Responsibility |
 | --- | --- | --- |
-| `nginx` | `nginx:1.27-alpine` | The only service with published ports (80/443). Routes `/api` to the API and everything else to the frontend. Adds CSP, HSTS (HTTPS mode) and other security headers. Rate limits `/api/auth` (10 req/min per IP) and `/api` (20 req/s per IP). Serves Let's Encrypt challenges. |
+| `nginx` | `nginx:1.27-alpine` | The only service with published ports (80/443). Routes `/api` to the API and everything else to the frontend. Adds CSP, HSTS (HTTPS mode) and other security headers. Rate limits `/api` (20 req/s per IP). Serves Let's Encrypt challenges. |
 | `frontend` | built from `frontend/` | Static React build served by unprivileged NGINX. |
 | `api` | built from `backend/` | Clerk JWT verification, user provisioning, monitor CRUD (including credential encryption), incidents, dashboard aggregates and settings. Applies Prisma migrations on start. |
 | `scheduler` | backend image | Keeps exactly one BullMQ job scheduler per enabled monitor, handles `sync` jobs from the API, reconciles Redis with PostgreSQL every 60 s, re-queues unsent alerts and deletes check records older than the retention window. |
@@ -548,7 +548,7 @@ On `PATCH /api/monitors/:id`, omit `auth` to keep credentials, send a new `auth`
 | SSRF via monitored URLs or token URLs | Scheme allow-list, DNS + IP range validation before every request and redirect hop, cloud metadata blocked |
 | Credential leakage | AES-256-GCM at rest, never returned by the API, never logged, never forwarded cross-origin, HTTPS required |
 | Header injection | Header names validated as HTTP tokens; line breaks rejected; restricted headers blocked |
-| Brute force / abuse | NGINX rate limits on `/api/auth` and `/api` |
+| Brute force / abuse | Sign-in attempts are rate limited by Clerk; NGINX rate limits `/api` per IP |
 | XSS / clickjacking | Strict Content-Security-Policy, `X-Frame-Options`/`frame-ancestors 'none'`, `nosniff`, referrer policy |
 | Database exposure | PostgreSQL and Redis on an internal network with no published ports |
 | Duplicate alerts / races | Row lock, partial unique index and unique delivery key |
@@ -750,7 +750,7 @@ Until a domain is verified, Resend only sends from `onboarding@resend.dev` to yo
 
 ## Testing and CI
 
-There are **152 tests**: 41 for the test lab (`cd testlab && npm test`) and **111 backend integration tests** that run against real PostgreSQL and Redis. External HTTP servers, OAuth servers, DNS, SMTP and Clerk are replaced with in-process fakes, so no network access or real credentials are needed.
+There are **158 tests**: 41 for the test lab (`cd testlab && npm test`) and **117 backend integration tests** that run against real PostgreSQL and Redis. External HTTP servers, OAuth servers, DNS, SMTP and Clerk are replaced with in-process fakes, so no network access or real credentials are needed.
 
 | Area | Covered |
 | --- | --- |
@@ -786,7 +786,7 @@ Override the defaults with `TEST_DATABASE_URL` and `TEST_REDIS_URL`.
 flowchart LR
     push(["push / pull request"]) --> be & fe & tl
     subgraph be["backend job"]
-        b1["npm ci"] --> b2["prisma generate"] --> b3["typecheck"] --> b4["111 tests<br/>(Postgres + Redis services)"] --> b5["build"]
+        b1["npm ci"] --> b2["prisma generate"] --> b3["typecheck"] --> b4["117 tests<br/>(Postgres + Redis services)"] --> b5["build"]
     end
     subgraph fe["frontend job"]
         f1["npm ci"] --> f2["typecheck + build"]
@@ -1003,7 +1003,7 @@ All endpoints are under `/api` and, except `/health`, require `Authorization: Be
 ## Known limitations
 
 - **DNS rebinding window.** Native `fetch` can't pin the IP it connects to. The checker validates DNS immediately before each request and redirect hop, but a malicious DNS server with a very short TTL could in theory answer differently between the two lookups. A full fix needs a custom undici connector.
-- **Stalled bodies count as up.** A response's status line decides the result. If a server sends healthy headers and then hangs mid-body, the check records success with a response time equal to the timeout. The test lab can reproduce this.
+- **Body checks are shallow.** A body that hangs counts as a timeout, but only the first 1 MB is read, event streams are judged on their headers, and a connection that closes early mid-body still counts as up.
 - **Single vantage point.** Checks run from one VM, so a network problem on the VM shows up as downtime on every monitor.
 - **Session tokens.** Clerk session JWTs live about 60 seconds. After sign-out, an already-issued token remains valid until it expires.
 - **OAuth2.** Only the client credentials grant is supported.

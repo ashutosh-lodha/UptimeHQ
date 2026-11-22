@@ -93,7 +93,7 @@ function endpointRow([id, endpoint]) {
     change('set', { id, mode: select.value, custom: select.value === 'custom' ? custom : undefined }, `${endpoint.name}: ${modes[select.value].label}`);
 
   const up = modes[mode].group === 'Up' || (mode === 'custom' && custom.status < 400);
-  const tone = mode === 'flapping' || mode === 'stall' ? 'mixed' : up ? '' : 'down';
+  const tone = mode === 'flapping' ? 'mixed' : up ? '' : 'down';
 
   const row = el(
     'div',

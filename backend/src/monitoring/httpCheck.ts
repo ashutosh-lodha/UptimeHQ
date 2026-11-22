@@ -87,12 +87,22 @@ export async function performHttpCheck(target: CheckTarget, deps: HttpCheckDeps 
         continue;
       }
 
-      await discardBody(response);
+      const bodyRead = await discardBody(response);
       const responseTimeMs = elapsed();
       const inRange = response.status >= target.expectedStatusMin && response.status <= target.expectedStatusMax;
       // A server answering 401/403 to a request carrying credentials is never healthy.
       const authRejected = Boolean(target.authenticated) && (response.status === 401 || response.status === 403);
       const ok = inRange && !authRejected;
+      // A healthy status is not enough if the body then hangs. A failing status keeps its own, clearer error.
+      if (ok && !bodyRead && controller.signal.aborted) {
+        return {
+          success: false,
+          outcome: 'TIMEOUT',
+          statusCode: response.status,
+          responseTimeMs,
+          error: `Response body timed out after ${target.timeoutMs} ms (HTTP ${response.status})`,
+        };
+      }
       let error: string | null = null;
       if (!ok) {
         if (response.status === 401) error = 'Authentication failed (HTTP 401)';
@@ -110,20 +120,27 @@ export async function performHttpCheck(target: CheckTarget, deps: HttpCheckDeps 
   }
 }
 
-async function discardBody(response: Response) {
-  if (!response.body) return;
+/** Reads and drops the body. Resolves false when reading failed, e.g. because the check timed out. */
+async function discardBody(response: Response): Promise<boolean> {
+  if (!response.body) return true;
   try {
+    // Event streams never end by design: receiving the headers is the whole check.
+    if (response.headers.get('content-type')?.toLowerCase().startsWith('text/event-stream')) {
+      await response.body.cancel();
+      return true;
+    }
     // Read at most MAX_BODY_BYTES so the timing covers the response, then cancel.
     const reader = response.body.getReader();
     let total = 0;
     while (total < MAX_BODY_BYTES) {
       const { done, value } = await reader.read();
-      if (done) return;
+      if (done) return true;
       total += value?.byteLength ?? 0;
     }
     await reader.cancel();
+    return true;
   } catch {
-    // Body errors after headers do not change the outcome of the check.
+    return false;
   }
 }
 

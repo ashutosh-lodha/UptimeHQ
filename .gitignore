@@ -10,3 +10,4 @@ certbot/
 Thumbs.db
 .vscode/
 .idea/
+testlab/data/

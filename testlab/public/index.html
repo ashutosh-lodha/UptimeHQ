@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>UptimeHQ Test Lab</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/testlab/panel.css" />
+    <script src="/testlab/panel.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>UptimeHQ Test Lab</h1>
+        <p>Break test endpoints on purpose and watch UptimeHQ detect it.</p>
+      </header>
+
+      <form id="login" class="box">
+        <label for="password">Password</label>
+        <div class="row">
+          <input id="password" type="password" autocomplete="current-password" required />
+          <button class="primary">Open test lab</button>
+        </div>
+      </form>
+
+      <div id="panel" hidden>
+        <ol class="steps box">
+          <li>Monitor an endpoint below in UptimeHQ.</li>
+          <li>Pick how it should behave. The change is instant.</li>
+          <li>UptimeHQ shows it on the next check (30 seconds for the lab monitors).</li>
+        </ol>
+
+        <section class="box">
+          <div class="title">
+            <h2>Endpoints you control</h2>
+            <div class="row">
+              <button id="all-up" type="button">All healthy</button>
+              <button id="all-down" type="button" class="danger">All down</button>
+              <button id="revoke" type="button" title="The next OAuth2 check gets a 401, then fetches a new token">Revoke OAuth2 tokens</button>
+            </div>
+          </div>
+          <div id="endpoints"></div>
+        </section>
+
+        <details class="box">
+          <summary>Always-failing URLs (one per failure type)</summary>
+          <p class="muted">These never change and need no credentials.</p>
+          <div id="fixed"></div>
+        </details>
+
+        <details class="box">
+          <summary>Test credentials</summary>
+          <p class="muted">For the protected endpoints only. They are not real secrets.</p>
+          <div id="credentials"></div>
+        </details>
+
+        <details class="box" open>
+          <summary>Recent requests</summary>
+          <ul id="recent"></ul>
+        </details>
+      </div>
+
+      <p id="message" role="status" aria-live="polite"></p>
+    </main>
+  </body>
+</html>

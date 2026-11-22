@@ -1,0 +1,14 @@
+{
+  "name": "uptimehq-testlab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Controllable endpoints that simulate every kind of downtime UptimeHQ detects",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}

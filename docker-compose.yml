@@ -135,6 +135,21 @@ services:
     restart: unless-stopped
     networks: [edge]
 
+  # Standalone app served at /testlab: endpoints that fail on demand (see testlab/README.md).
+  # It has no access to the database, Redis, UptimeHQ's secrets or the internet.
+  testlab:
+    logging: *default-logging
+    build: ./testlab
+    # Always built on the host (copy-only, takes seconds), so it needs no registry package.
+    image: uptimehq-testlab:${IMAGE_TAG:-latest}
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      APP_URL: ${APP_URL:-http://localhost}
+    volumes:
+      - testlab_data:/data
+    networks: [lab]
+
   nginx:
     logging: *default-logging
     image: nginx:1.27-alpine
@@ -155,7 +170,7 @@ services:
     depends_on:
       api: { condition: service_healthy }
       frontend: { condition: service_healthy }
-    networks: [edge]
+    networks: [edge, lab]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-health"]
       interval: 30s
@@ -167,8 +182,12 @@ networks:
   backend:
     internal: true
   edge: {}
+  # Only nginx and the test lab.
+  lab:
+    internal: true
   egress: {}
 
 volumes:
   postgres_data:
   redis_data:
+  testlab_data:

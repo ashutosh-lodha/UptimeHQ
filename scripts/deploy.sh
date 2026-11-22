@@ -50,6 +50,11 @@ if [ -n "$registry" ]; then
     if [ -n "$previous" ]; then set_env IMAGE_TAG "$previous"; else sed -i '/^IMAGE_TAG=/d' .env; fi
     exit 1
   fi
+  # The test lab only copies files, so it is built here. Commits from before it have no such service.
+  if grep -q '^  testlab:' docker-compose.yml; then
+    echo "==> Building the test lab"
+    docker compose build testlab
+  fi
   echo "==> Starting containers"
   docker compose up -d --no-build --remove-orphans
 else

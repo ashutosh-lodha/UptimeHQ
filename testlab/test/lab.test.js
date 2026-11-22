@@ -59,6 +59,12 @@ describe('fixed scenarios', () => {
     assert.equal((await get('/s/drop')).headers.get('x-accel-redirect'), '@testlab_drop');
   });
 
+  it('truncate closes before the promised body is complete', async () => {
+    const res = await get('/s/truncate');
+    assert.equal(res.status, 200);
+    await assert.rejects(res.arrayBuffer());
+  });
+
   it('timeout does not answer', async () => {
     await assert.rejects(get('/s/timeout', { signal: AbortSignal.timeout(300) }));
   });

@@ -35,6 +35,7 @@ export const MODES = {
   blackhole: { group: 'Timeout', label: 'Connection never completes', to: 'blackhole', expect: 'TIMEOUT' },
 
   drop: { group: 'Network', label: 'Connection reset', action: 'drop', expect: 'NETWORK_ERROR' },
+  truncate: { group: 'Network', label: 'Response cut off mid-body', action: 'truncate', expect: 'NETWORK_ERROR' },
   refused: { group: 'Network', label: 'Connection refused', to: 'refused', expect: 'NETWORK_ERROR' },
   dns: { group: 'Network', label: 'DNS failure', to: 'dns', expect: 'NETWORK_ERROR' },
   unreachable: { group: 'Network', label: 'Host unreachable', to: 'unreachable', expect: 'NETWORK_ERROR' },

@@ -29,6 +29,11 @@ export interface HttpCheckDeps {
 
 export const MAX_REDIRECTS = 5;
 const MAX_BODY_BYTES = 1024 * 1024;
+/**
+ * What fetch reports when the connection ends before the body does. Deliberately a short list:
+ * other read errors (e.g. a wrongly labelled gzip body) are about content, which checks don't judge.
+ */
+const CUT_OFF_CODES = new Set(['UND_ERR_SOCKET', 'ECONNRESET']);
 
 function statusOutcome(status: number, ok: boolean): CheckOutcome {
   if (ok) return 'SUCCESS';
@@ -87,21 +92,16 @@ export async function performHttpCheck(target: CheckTarget, deps: HttpCheckDeps 
         continue;
       }
 
-      const bodyRead = await discardBody(response);
+      const bodyError = await discardBody(response);
       const responseTimeMs = elapsed();
       const inRange = response.status >= target.expectedStatusMin && response.status <= target.expectedStatusMax;
       // A server answering 401/403 to a request carrying credentials is never healthy.
       const authRejected = Boolean(target.authenticated) && (response.status === 401 || response.status === 403);
       const ok = inRange && !authRejected;
-      // A healthy status is not enough if the body then hangs. A failing status keeps its own, clearer error.
-      if (ok && !bodyRead && controller.signal.aborted) {
-        return {
-          success: false,
-          outcome: 'TIMEOUT',
-          statusCode: response.status,
-          responseTimeMs,
-          error: `Response body timed out after ${target.timeoutMs} ms (HTTP ${response.status})`,
-        };
+      // A healthy status is not enough if the body then fails. A failing status keeps its own, clearer error.
+      if (ok && bodyError) {
+        const failed = classifyBodyError(bodyError, controller.signal.aborted, target.timeoutMs, response.status);
+        if (failed) return { success: false, ...failed, statusCode: response.status, responseTimeMs };
       }
       let error: string | null = null;
       if (!ok) {
@@ -120,27 +120,37 @@ export async function performHttpCheck(target: CheckTarget, deps: HttpCheckDeps 
   }
 }
 
-/** Reads and drops the body. Resolves false when reading failed, e.g. because the check timed out. */
-async function discardBody(response: Response): Promise<boolean> {
-  if (!response.body) return true;
+/** Decides whether an error while reading the body fails the check; null means it does not. */
+function classifyBodyError(err: unknown, aborted: boolean, timeoutMs: number, status: number): { error: string; outcome: CheckOutcome } | null {
+  if (aborted) return { outcome: 'TIMEOUT', error: `Response body timed out after ${timeoutMs} ms (HTTP ${status})` };
+  const code = (err as { cause?: { code?: string } })?.cause?.code;
+  if (code && CUT_OFF_CODES.has(code)) {
+    return { outcome: 'NETWORK_ERROR', error: `Response body was cut off before it finished (HTTP ${status})` };
+  }
+  return null;
+}
+
+/** Reads and drops the body. Resolves with the error that interrupted reading, or null. */
+async function discardBody(response: Response): Promise<unknown> {
+  if (!response.body) return null;
   try {
     // Event streams never end by design: receiving the headers is the whole check.
     if (response.headers.get('content-type')?.toLowerCase().startsWith('text/event-stream')) {
       await response.body.cancel();
-      return true;
+      return null;
     }
     // Read at most MAX_BODY_BYTES so the timing covers the response, then cancel.
     const reader = response.body.getReader();
     let total = 0;
     while (total < MAX_BODY_BYTES) {
       const { done, value } = await reader.read();
-      if (done) return true;
+      if (done) return null;
       total += value?.byteLength ?? 0;
     }
     await reader.cancel();
-    return true;
-  } catch {
-    return false;
+    return null;
+  } catch (err) {
+    return err;
   }
 }
 

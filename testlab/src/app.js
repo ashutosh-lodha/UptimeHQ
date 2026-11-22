@@ -138,6 +138,17 @@ export function createLab(config, { now = Date.now } = {}) {
       res.write('started\n');
       return later(res, HANG_MS, () => res.end('finished\n'));
     }
+    if (mode.action === 'truncate') {
+      // Promises more body than it sends, then closes; NGINX passes the early close on to the client.
+      res.writeHead(200, {
+        'Content-Type': 'text/plain',
+        'Content-Length': 4096,
+        'Content-Security-Policy': SIM_CSP,
+        'X-Accel-Buffering': 'no',
+      });
+      res.write('started\n');
+      return later(res, 150, () => res.destroy());
+    }
     if (mode.action === 'custom') {
       const { status, delayMs, body } = custom;
       return later(res, delayMs, () => send(res, status, body, { type: format === 'json' ? 'application/json' : 'text/plain' }));

@@ -20,10 +20,10 @@ Sign in to UptimeHQ once, then run this on the server with the email you sign in
 docker compose exec -T testlab node src/monitors.js | docker compose exec -T api node dist/cli/importMonitors.js you@example.com
 ```
 
-It creates 31 monitors and is safe to run again (existing names are skipped):
+It creates 32 monitors and is safe to run again (existing names are skipped):
 
 - **`Lab: …` (8, every 30 seconds):** the endpoints you control, one per endpoint and authentication type. They start healthy.
-- **`Sim: …` (23, every 5 minutes):** one per failure type. They are always down, so **each sends one "down" email** when first checked. Add `--paused` to import everything paused and resume what you need.
+- **`Sim: …` (24, every 5 minutes):** one per failure type. They are always down, so **each sends one "down" email** when first checked. Add `--paused` to import everything paused and resume what you need.
 
 ## Endpoints
 
@@ -47,6 +47,7 @@ It creates 31 monitors and is safe to run again (existing names are skipped):
 | Headers sent, body hangs | `TIMEOUT` | Sends a 200 and part of the body, then nothing |
 | Connection never completes | `TIMEOUT` | Redirects to an address that never answers |
 | Connection reset | `NETWORK_ERROR` | NGINX resets the TCP connection |
+| Response cut off mid-body | `NETWORK_ERROR` | Promises 4 KB, sends 8 bytes, then closes |
 | Connection refused | `NETWORK_ERROR` | Redirects to port 3389 of the same VM (open in GCP's default firewall, nothing listening) |
 | DNS failure | `NETWORK_ERROR` | Redirects to a `.invalid` hostname |
 | Host unreachable | `NETWORK_ERROR` | Redirects to an IPv6 address (containers have no IPv6 route) |

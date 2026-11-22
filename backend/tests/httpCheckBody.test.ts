@@ -86,6 +86,53 @@ describe('response body', () => {
     expect(result).toMatchObject({ success: true, outcome: 'SUCCESS' });
   });
 
+  it.each([
+    ['a Content-Length body closed early', { 'Content-Length': '1000' }, 'close'],
+    ['a Content-Length body reset', { 'Content-Length': '1000' }, 'reset'],
+    ['a chunked body closed without its terminator', { 'Transfer-Encoding': 'chunked' }, 'close'],
+    ['a chunked body reset', { 'Transfer-Encoding': 'chunked' }, 'reset'],
+  ] as const)('fails %s', async (_name, headers, how) => {
+    const result = await check((_req, res) => {
+      res.writeHead(200, { ...headers });
+      res.write('partial');
+      setTimeout(() => (how === 'reset' ? res.socket?.resetAndDestroy() : res.socket?.destroy()), 100);
+    });
+    expect(result).toMatchObject({
+      success: false,
+      outcome: 'NETWORK_ERROR',
+      statusCode: 200,
+      error: 'Response body was cut off before it finished (HTTP 200)',
+    });
+  });
+
+  it('fails a response closed straight after its headers', async () => {
+    const result = await check((_req, res) => {
+      res.socket?.end('HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\n');
+    });
+    expect(result).toMatchObject({ success: false, outcome: 'NETWORK_ERROR', statusCode: 200 });
+  });
+
+  it('keeps the status failure when a failing response is also cut off', async () => {
+    const result = await check((_req, res) => {
+      res.writeHead(503, { 'Content-Length': '1000' });
+      res.write('partial');
+      setTimeout(() => res.socket?.destroy(), 100);
+    });
+    expect(result).toMatchObject({ success: false, outcome: 'HTTP_STATUS_FAILURE', statusCode: 503 });
+  });
+
+  it('accepts a body that is ended by closing the connection', async () => {
+    const result = await check((_req, res) => {
+      res.socket?.end('HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nhello');
+    });
+    expect(result).toMatchObject({ success: true, outcome: 'SUCCESS' });
+  });
+
+  it('does not judge content: a wrongly labelled gzip body is still up', async () => {
+    const result = await check((_req, res) => res.writeHead(200, { 'Content-Encoding': 'gzip' }).end('plain text'));
+    expect(result).toMatchObject({ success: true, outcome: 'SUCCESS' });
+  });
+
   it('succeeds for HEAD, which has no body', async () => {
     const result = await check((_req, res) => res.writeHead(200, { 'Content-Length': '500' }).end(), { method: 'HEAD' });
     expect(result).toMatchObject({ success: true, statusCode: 200 });
